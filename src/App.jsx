@@ -6,33 +6,29 @@ import L from "leaflet";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
+// Fix marker icon issue
 let DefaultIcon = L.icon({
   iconUrl: markerIcon,
   shadowUrl: markerShadow
 });
-
 L.Marker.prototype.options.icon = DefaultIcon;
+
 export default function App() {
-  const [receipt, setReceipt] = useState(null);
   const [screen, setScreen] = useState("home");
   const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: ""
-  });
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [currentUser, setCurrentUser] = useState(null);
-const [position, setPosition] = useState([13.0827, 80.2707]);
+
+  const [position, setPosition] = useState([13.0827, 80.2707]);
+
   const [driver, setDriver] = useState({
     name: "",
-    license: "",
     vehicle: "2 Wheeler",
     area: ""
   });
 
-  const [distance, setDistance] = useState("");
-  const [demand, setDemand] = useState("");
-  const [fare, setFare] = useState(0);
+  const [eta, setEta] = useState("");
+  const [status, setStatus] = useState("");
 
   // ---------------- AUTH ----------------
   const handleChange = (e) => {
@@ -47,8 +43,7 @@ const [position, setPosition] = useState([13.0827, 80.2707]);
 
   const handleLogin = () => {
     const user = users.find(
-      (u) =>
-        u.email === form.email && u.password === form.password
+      (u) => u.email === form.email && u.password === form.password
     );
 
     if (user) {
@@ -60,61 +55,41 @@ const [position, setPosition] = useState([13.0827, 80.2707]);
   };
 
   // ---------------- DRIVER ----------------
-  const goOnline = () => {
-    alert("Driver Online 🟢");
-  };
+  const goOnline = async () => {
+    alert("You are now visible to passengers 🟢");
 
-  const goOffline = () => {
-    alert("Driver Offline 🔴");
+    try {
+      await supabase.from("drivers").insert([
+        {
+          name: driver.name,
+          vehicle: driver.vehicle,
+          area: driver.area,
+          lat: position[0],
+          lng: position[1]
+        }
+      ]);
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   // ---------------- PASSENGER ----------------
- const findDriver = () => {
-  navigator.geolocation.getCurrentPosition((pos) => {
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
+  const findNearby = () => {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
 
-    setPosition([lat, lon]);
+      setPosition([lat, lon]);
 
-    let dist = Math.floor(Math.random() * 10) + 1;
-    setDistance(dist);
+      let time = Math.floor(Math.random() * 8) + 2;
+      setEta(time + " mins");
 
-    if (dist > 5) setDemand("🔴 High Demand");
-    else if (dist > 3) setDemand("🟡 Medium Demand");
-    else setDemand("🔵 Low Demand");
+      setStatus("Drivers visible nearby ✅");
 
-    setFare(dist * 10);
-
-    speechSynthesis.speak(
-      new SpeechSynthesisUtterance("Driver found nearby")
-    );
-  });
-};
-
-  // ✅ BACKEND CONNECT
-  const createRide = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/ride", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          driver: driver.name,
-          passenger: currentUser?.name,
-          distance: distance
-        })
-      });
-
-      const data = await res.json();
-
-      alert("Ride Confirmed 🚖 Fare: ₹" + data.fare);
-
-      setReceipt(data);
-
-    } catch (err) {
-      alert("Backend not connected ❌");
-    }
+      speechSynthesis.speak(
+        new SpeechSynthesisUtterance("Drivers nearby are now visible")
+      );
+    });
   };
 
   return (
@@ -137,7 +112,7 @@ const [position, setPosition] = useState([13.0827, 80.2707]);
           <input name="email" placeholder="Email" onChange={handleChange} />
           <input name="password" type="password" placeholder="Password" onChange={handleChange} />
           <button onClick={handleSignup}>Sign Up</button>
-          <button className="back" onClick={() => setScreen("home")}>⬅ Back</button>
+          <button onClick={() => setScreen("home")}>⬅ Back</button>
         </div>
       )}
 
@@ -148,7 +123,7 @@ const [position, setPosition] = useState([13.0827, 80.2707]);
           <input name="email" placeholder="Email" onChange={handleChange} />
           <input name="password" type="password" placeholder="Password" onChange={handleChange} />
           <button onClick={handleLogin}>Login</button>
-          <button className="back" onClick={() => setScreen("home")}>⬅ Back</button>
+          <button onClick={() => setScreen("home")}>⬅ Back</button>
         </div>
       )}
 
@@ -158,7 +133,7 @@ const [position, setPosition] = useState([13.0827, 80.2707]);
           <h2>Welcome {currentUser?.name} 👋</h2>
           <button onClick={() => setScreen("driver")}>🚖 Driver</button>
           <button onClick={() => setScreen("passenger")}>🙋 Passenger</button>
-          <button className="back" onClick={() => setScreen("home")}>Logout</button>
+          <button onClick={() => setScreen("home")}>Logout</button>
         </div>
       )}
 
@@ -167,71 +142,60 @@ const [position, setPosition] = useState([13.0827, 80.2707]);
         <div className="panel">
           <h2>Driver Panel</h2>
 
-          <input placeholder="Driver Name" onChange={(e)=>setDriver({...driver, name:e.target.value})} />
-          <input placeholder="License Number" onChange={(e)=>setDriver({...driver, license:e.target.value})} />
+          <input placeholder="Driver Name"
+            onChange={(e)=>setDriver({...driver, name:e.target.value})} />
 
-          <select onChange={(e)=>setDriver({...driver, vehicle:e.target.value})}>
+          <select
+            onChange={(e)=>setDriver({...driver, vehicle:e.target.value})}>
             <option>2 Wheeler</option>
             <option>3 Wheeler</option>
             <option>4 Wheeler</option>
           </select>
 
-          <input placeholder="Current Area" onChange={(e)=>setDriver({...driver, area:e.target.value})} />
+          <input placeholder="Area"
+            onChange={(e)=>setDriver({...driver, area:e.target.value})} />
 
-          <button className="green" onClick={goOnline}>🟢 Go Online</button>
-          <button className="red" onClick={goOffline}>🔴 Go Offline</button>
+          <button className="green" onClick={goOnline}>
+            🟢 Go Visible
+          </button>
 
           <p>👤 {driver.name}</p>
-          <p>🪪 {driver.license}</p>
           <p>🚗 {driver.vehicle}</p>
           <p>📍 {driver.area}</p>
-         
-          <button className="back" onClick={() => setScreen("dashboard")}>⬅ Back</button>
+
+          <button onClick={() => setScreen("dashboard")}>⬅ Back</button>
         </div>
       )}
 
       {/* PASSENGER */}
       {screen === "passenger" && (
         <div className="panel">
-          {/* MAP UI */}
-<div style={{ height: "300px" }}>
-  <MapContainer center={[13.0827, 80.2707]} zoom={13} style={{ height: "100%" }}>
-    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-    <Marker position={[13.0827, 80.2707]}>
-      <Popup>Map Working ✅</Popup>
-    </Marker>
-  </MapContainer>
-</div>
-          <h2>Passenger Panel</h2>
 
-          <button className="green" onClick={findDriver}>🚖 Find Driver</button>
+          {/* MAP */}
+          <div style={{ height: "300px" }}>
+            <MapContainer center={position} zoom={13} style={{ height: "100%" }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <Marker position={position}>
+                <Popup>You are here 📍</Popup>
+              </Marker>
+            </MapContainer>
+          </div>
 
-          <p>🚖 Driver: {driver.name || "Not Assigned"}</p>
-          <p>📏 Distance: {distance} km</p>
-          <p>{demand}</p>
-          <p>💰 Fare: ₹{fare}</p>
+          <h2>Nearby Drivers</h2>
 
-          <button onClick={createRide}>
-            Confirm Ride & Generate Receipt
+          <button onClick={findNearby}>
+            🔍 Show Nearby Drivers
           </button>
 
-          <button onClick={()=>alert("SOS Alert Sent 🚨")}>
+          <p>{status}</p>
+          <p>🚖 Driver: {driver.name || "Searching..."}</p>
+          <p>⏱ ETA: {eta}</p>
+
+          <button onClick={() => alert("SOS Sent 🚨")}>
             🛡 SOS
           </button>
 
-          {/* ✅ RECEIPT */}
-          {receipt && (
-            <div style={{ marginTop: "15px", background: "#eee", padding: "10px", borderRadius:"10px" }}>
-              <h3>🧾 Receipt</h3>
-              <p>👤 Passenger: {receipt.passenger}</p>
-              <p>🚖 Driver: {receipt.driver}</p>
-              <p>📏 Distance: {receipt.distance} km</p>
-              <p>💰 Fare: ₹{receipt.fare}</p>
-              <p>🕒 Time: {receipt.time}</p>
-            </div>
-          )}
-
-          <button className="back" onClick={() => setScreen("dashboard")}>
+          <button onClick={() => setScreen("dashboard")}>
             ⬅ Back
           </button>
         </div>
